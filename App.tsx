@@ -1,25 +1,34 @@
-import { StyleSheet, View, Text } from 'react-native';
+import { StyleSheet, View, Text, ScrollView, SafeAreaView } from 'react-native';
 import { Video, ResizeMode } from 'expo-av';
 import * as SplashScreen from 'expo-splash-screen';
 import React, { useCallback, useEffect, useState } from 'react';
+import VitalSign from './types/VitalSign';
+import { Prompt_400Regular, useFonts, Prompt_600SemiBold, Prompt_500Medium_Italic } from '@expo-google-fonts/prompt';
+import { Entypo } from '@expo/vector-icons';
 
 SplashScreen.preventAutoHideAsync();
 
 export default function App() {
   const [appIsReady, setAppIsReady] = useState(false);
+  const [vitalSigns, setVitalSigns] = useState<VitalSign[]>([]);
+
+  let [fontsLoaded] = useFonts({
+    Prompt_400Regular,
+    Prompt_600SemiBold,
+    Prompt_500Medium_Italic
+  });
 
   useEffect(() => {
     async function prepare() {
       try {
-        // Pre-load fonts, make any API calls you need to do here
+        const response = await fetch('https://climate.nasa.gov/api/v1/vital_signs')
 
-        // Artificially delay for two seconds to simulate a slow loading
-        // experience. Please remove this if you copy and paste the code!
-        await new Promise(resolve => setTimeout(resolve, 2000));
+        const { items } = await response.json()
+
+        setVitalSigns(items.filter((item: VitalSign) => item.display_in_dashboard))
       } catch (e) {
         console.warn(e);
       } finally {
-        // Tell the application to render
         setAppIsReady(true);
       }
     }
@@ -28,22 +37,17 @@ export default function App() {
   }, []);
 
   const onLayoutRootView = useCallback(async () => {
-    if (appIsReady) {
-      // This tells the splash screen to hide immediately! If we call this after
-      // `setAppIsReady`, then we may see a blank screen while the app is
-      // loading its initial state and rendering its first pixels. So instead,
-      // we hide the splash screen once we know the root view has already
-      // performed layout.
+    if (appIsReady && fontsLoaded) {
       await SplashScreen.hideAsync();
     }
-  }, [appIsReady]);
+  }, [appIsReady, fontsLoaded]);
 
   if (!appIsReady) {
     return null
   }
 
   return (
-    <View
+    <SafeAreaView
       style={styles.container}
       onLayout={onLayoutRootView}
     >
@@ -54,7 +58,43 @@ export default function App() {
         style={styles.video}
         shouldPlay
       />
-    </View>
+
+      <ScrollView
+        contentContainerStyle={styles.vitalSigns}
+      >
+        {
+          vitalSigns.map((vitalSign) => (
+            <View style={styles.itemVitalSign}>
+              <Text
+                style={styles.textTitle}
+              >
+                {vitalSign.title}
+              </Text>
+
+              <View style={styles.itemVitalSignInfo}>
+                {
+                  vitalSign.rate_is_increasing
+                    ?
+                    <Entypo name="arrow-long-up" size={30} color="white" />
+                    :
+                    <Entypo name="arrow-long-down" size={30} color="white" />
+                }
+                <Text
+                  style={styles.textValue}
+                >
+                  {Math.abs(+vitalSign.value).toFixed(1)}
+                </Text>
+                <Text
+                  style={styles.textUnit}
+                >
+                  {vitalSign.units}
+                </Text>
+              </View>
+            </View>
+          ))
+        }
+      </ScrollView>
+    </SafeAreaView>
   );
 }
 
@@ -71,6 +111,43 @@ const styles = StyleSheet.create({
     position: "absolute",
     opacity: 0.3,
   },
+  vitalSigns: {
+    display: 'flex',
+    alignItems: 'center',
+    minWidth: '100%',
+    padding: 40
+  },
+  itemVitalSign: {
+    display: 'flex',
+    alignItems: 'center',
+    marginTop: 30,
+    backgroundColor: '#FFF3',
+    width: '100%',
+    padding: 5,
+    borderRadius: 20
+  },
+  itemVitalSignInfo: {
+    display: 'flex',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  textTitle: {
+    color: "#FFFF",
+    fontSize: 20,
+    marginBottom: 10,
+    fontFamily: 'Prompt_400Regular'
+  },
+  textValue: {
+    color: "#FFFF",
+    fontSize: 40,
+    fontFamily: 'Prompt_600SemiBold',
+    marginLeft: 5
+  },
+  textUnit: {
+    color: "#FFFF",
+    maxWidth: 100,
+    marginLeft: 10,
+    fontFamily: 'Prompt_500Medium_Italic'
+  }
 });
-
-const apiUrl = 'https://climate.nasa.gov/api/v1/vital_signs'
